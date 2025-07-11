@@ -11,9 +11,24 @@ KEY_LIGHT = "ligh"
 KEY_DEFROST = "def"
 KEY_ALARM = "almst"
 KEY_RECORDING = "recst"
+KEY_BG_TEMP = "bg_temp"
 
-# Parameter codes for API
-PARAM_SETPOINT = "Set"
-PARAM_STANDBY = "stby"
-PARAM_LIGHT = "ligh"
-PARAM_DEFROST = "def"
+# Button indices for btnfunct.cgi
+BTN_STANDBY = 0
+BTN_LIGHT = 1
+BTN_DEFROST = 2
+
+# Parameter levels for pdatamod.cgi
+PARAM_LEVEL_SETPOINT = 0
+PARAM_LEVEL_1 = 1
+PARAM_LEVEL_2 = 2
+PARAM_LEVEL_3 = 3
+PARAM_LEVEL_4 = 4
+
+# Parameter operation types
+PARAM_OP_UPDATE = "upd"
+PARAM_OP_MODIFY = "mod"
+
+# Authentication
+DEFAULT_USERNAME = "admin"
+SESSION_KEEPALIVE_INTERVAL = 90  # seconds (under 2 minute limit)

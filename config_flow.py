@@ -40,6 +40,8 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             except aiohttp.ClientError:
                 errors["base"] = "cannot_connect"
+            except ValueError:
+                errors["base"] = "invalid_auth"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
@@ -47,7 +49,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({
             vol.Required(CONF_HOST): str,
             vol.Required(CONF_USERNAME, default="admin"): str,
-            vol.Required(CONF_PASSWORD): str,
+            vol.Required(CONF_PASSWORD): cv.string,
         })
 
         return self.async_show_form(
@@ -57,7 +59,38 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def _test_connection(self, host: str, username: str, password: str):
         """Test if we can connect to the device."""
         session = async_get_clientsession(self.hass)
-        url = f"http://{host}/ajax_data.cgi?pgd='{password}'"
-        async with session.get(url, timeout=10) as response:
-            response.raise_for_status()
-            await response.json()
+        
+        # Format password as 3 digits (PA parameter format)
+        password_formatted = password.zfill(3)[-3:]
+        
+        # Test authentication
+        url = f"http://{host}/log.cgi"
+        params = {
+            'user': username,
+            'pass': password_formatted
+        }
+        
+        try:
+            async with session.get(url, params=params, timeout=10) as response:
+                response.raise_for_status()
+                data = await response.json()
+                
+                if 'ID' not in data:
+                    raise ValueError("Authentication failed - no ID received")
+                
+                auth_id = data['ID']
+                
+                # Test data retrieval with the auth ID
+                data_url = f"http://{host}/ajax_data.cgi"
+                data_params = {'pgd': auth_id}
+                
+                async with session.get(data_url, params=data_params, timeout=10) as data_response:
+                    data_response.raise_for_status()
+                    await data_response.json()
+                    
+        except aiohttp.ClientError as err:
+            _LOGGER.error("Connection test failed: %s", err)
+            raise
+        except Exception as err:
+            _LOGGER.error("Authentication test failed: %s", err)
+            raise ValueError(f"Authentication failed: {err}")

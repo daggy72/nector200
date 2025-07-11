@@ -9,6 +9,7 @@ A custom Home Assistant integration for the Pego NECTOR200 Temperature Controlle
 - **Switch Controls**: Light and defrost cycle management
 - **Status Monitoring**: Alarm and recording status indicators
 - **Standby Mode**: Energy-saving standby functionality
+- **Session Management**: Automatic authentication and keepalive handling
 - **Local Polling**: Direct communication with your NECTOR200 device
 
 ## Requirements
@@ -16,7 +17,7 @@ A custom Home Assistant integration for the Pego NECTOR200 Temperature Controlle
 - Home Assistant 2023.1.0 or newer
 - Pego NECTOR200 Temperature Controller with network connectivity
 - Network access to the NECTOR200 device
-- Device credentials (username and password)
+- PA parameter value from your NECTOR200 device (used as password)
 
 ## Installation
 
@@ -43,13 +44,24 @@ A custom Home Assistant integration for the Pego NECTOR200 Temperature Controlle
 
 ## Configuration
 
+### Finding Your PA Parameter
+
+The password for the integration is the **PA parameter** value from your NECTOR200 device:
+
+1. Access your NECTOR200 device physically
+2. Navigate to the parameters menu
+3. Find parameter **PA** (password parameter)
+4. Note the value (0-999) - this is your password
+
+### Adding the Integration
+
 1. In Home Assistant, go to **Settings** → **Devices & Services**
 2. Click the **Add Integration** button
 3. Search for "NECTOR200"
 4. Enter the required information:
    - **Host**: IP address of your NECTOR200 device
    - **Username**: Device username (default: "admin")
-   - **Password**: Device password
+   - **Password**: PA parameter value from your device
 
 ## Available Entities
 
@@ -60,6 +72,7 @@ Once configured, the integration creates the following entities:
   - Supports cooling mode and standby
   - Temperature setpoint adjustment (0.1°C precision)
   - Current temperature display
+  - Temperature range: -50°C to +50°C
 
 ### Sensors
 - **WH1 Temperature**: Current temperature reading
@@ -96,27 +109,71 @@ entity: climate.wh1_temperature_control
 name: Wine Cellar
 ```
 
+### Service Call Examples
+```yaml
+# Set temperature to 5°C
+service: climate.set_temperature
+target:
+  entity_id: climate.wh1_temperature_control
+data:
+  temperature: 5.0
+
+# Turn on the light
+service: switch.turn_on
+target:
+  entity_id: switch.wh1_light
+
+# Trigger defrost cycle
+service: switch.turn_on
+target:
+  entity_id: switch.wh1_defrost
+```
+
 ## API Information
 
-The integration communicates with the NECTOR200 device using HTTP requests:
+The integration implements the NECTOR200 HTTP protocol with:
 
-- **Status Endpoint**: `http://{device_ip}/ajax_data.cgi?pgd='{password}'`
-- **Control Endpoint**: `http://{device_ip}/set_param.cgi`
-
-Data is polled every 30 seconds to keep the status up to date.
+- **Authentication**: Session-based login with automatic keepalive
+- **Status Updates**: Polled every 30 seconds
+- **Session Management**: Automatic re-authentication when needed
+- **Control Commands**: Toggle-based controls for switches
+- **Parameter Updates**: Incremental temperature adjustments
 
 ## Troubleshooting
 
 ### Cannot Connect
 - Verify the device IP address is correct
 - Ensure the device is accessible on your network
-- Check username and password are correct
-- Confirm Home Assistant can reach the device's network
+- Check that no other connections are active (NECTOR200 has limited concurrent sessions)
+- Verify the PA parameter value is correct
+
+### "Too Many Users" Error
+- Close any web browser connections to the device
+- Power cycle the NECTOR200 device
+- Wait 2-3 minutes for sessions to timeout
 
 ### Entities Not Updating
 - Check the device's web interface is accessible
 - Verify network connectivity
 - Review Home Assistant logs for error messages
+
+### Password Issues
+- The password must be the PA parameter value (0-999)
+- The integration automatically formats it correctly
+- Common default values: 0, 30, 100, 111, 123
+
+## Technical Details
+
+### Supported NECTOR200 Firmware
+- Tested with firmware.bin Rev. 4
+- HTTP protocol version: HTTP_NECTOR_01-21
+
+### API Endpoints Used
+- `/log.cgi` - Authentication
+- `/alive.cgi` - Session keepalive
+- `/ajax_data.cgi` - Status polling
+- `/btnfunct.cgi` - Control commands
+- `/pdatamod.cgi` - Parameter modifications
 
 ## Contributing
 
@@ -132,10 +189,11 @@ Contributions are welcome! Please:
 
 If you encounter issues:
 
-1. Check the [Home Assistant logs](https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug-logging)
-2. Open an issue on GitHub with:
+1. Enable debug logging for the integration
+2. Check the [Home Assistant logs](https://www.home-assistant.io/docs/configuration/troubleshooting/#enabling-debug-logging)
+3. Open an issue on GitHub with:
    - Home Assistant version
-   - Integration version
+   - NECTOR200 firmware version
    - Error messages from logs
    - Steps to reproduce
 
@@ -150,4 +208,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ## Acknowledgements
 
 - Home Assistant Community
-- Pego for the NECTOR200 device documentation
+- Pego for the NECTOR200 device and protocol documentation

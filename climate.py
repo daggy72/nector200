@@ -7,12 +7,12 @@ from homeassistant.components.climate import (
     ClimateEntityFeature,
     HVACMode,
 )
-from homeassistant.const import ATTR_TEMPERATURE, TEMP_CELSIUS
+from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, PARAM_SETPOINT
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,8 +32,10 @@ class NECTOR200Climate(CoordinatorEntity, ClimateEntity):
 
     _attr_hvac_modes = [HVACMode.COOL, HVACMode.OFF]
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE
-    _attr_temperature_unit = TEMP_CELSIUS
+    _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_target_temperature_step = 0.1
+    _attr_min_temp = -50.0  # Typical range for refrigeration
+    _attr_max_temp = 50.0
 
     def __init__(self, coordinator, config_entry):
         """Initialize the climate entity."""
@@ -63,21 +65,31 @@ class NECTOR200Climate(CoordinatorEntity, ClimateEntity):
         if (temperature := kwargs.get(ATTR_TEMPERATURE)) is None:
             return
         
-        # Send the setpoint to the device
-        success = await self.coordinator.async_set_parameter(
-            PARAM_SETPOINT, 
-            str(temperature)
-        )
+        # Use the new async_set_temperature method
+        success = await self.coordinator.async_set_temperature(temperature)
         
         if success:
+            # Update the local data optimistically
+            self.coordinator.data["setpoint"] = temperature
+            self.async_write_ha_state()
+            # Then request a refresh to get the actual value
             await self.coordinator.async_request_refresh()
+        else:
+            _LOGGER.error("Failed to set temperature to %s", temperature)
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set HVAC mode."""
+        # Use the new async_set_standby method
         if hvac_mode == HVACMode.OFF:
-            success = await self.coordinator.async_set_parameter(PARAM_STANDBY, "1")
+            success = await self.coordinator.async_set_standby(True)
         else:
-            success = await self.coordinator.async_set_parameter(PARAM_STANDBY, "0")
+            success = await self.coordinator.async_set_standby(False)
         
         if success:
+            # Update the local data optimistically
+            self.coordinator.data["standby"] = (hvac_mode == HVACMode.OFF)
+            self.async_write_ha_state()
+            # Then request a refresh to get the actual value
             await self.coordinator.async_request_refresh()
+        else:
+            _LOGGER.error("Failed to set HVAC mode to %s", hvac_mode)
